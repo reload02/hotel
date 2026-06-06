@@ -225,8 +225,28 @@ public class GuestService {
                 && store.baselineDateTime().isBefore(reservation.getCheckInDateTime());
     }
 
+    public boolean canCheckIn(Reservation reservation) {
+        LocalDateTime now = store.baselineDateTime();
+        return reservation.getStatus() == ReservationStatus.RESERVED
+                && !now.isBefore(reservation.getCheckInDateTime());
+    }
+
+    public boolean canCheckOut(Reservation reservation) {
+        LocalDateTime now = store.baselineDateTime();
+        return reservation.getStatus() == ReservationStatus.CHECKED_IN
+                && !now.isBefore(reservation.getCheckOutDateTime());
+    }
+
+    public boolean canWriteReview(Reservation reservation) {
+        return reservation.getStatus() == ReservationStatus.CHECKED_OUT
+                && reservation.getRating() == null;
+    }
+
     public void requestCancel(User guest, Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
+        if (!activePenaltiesOf(guest).isEmpty()) {
+            throw new IllegalArgumentException("페널티를 보유하고 있어 예약취소가 불가합니다.");
+        }
         if (!canCancel(reservation)) {
             throw new IllegalArgumentException("취소할 수 없는 예약입니다.");
         }
@@ -251,8 +271,7 @@ public class GuestService {
     public boolean checkIn(User guest, Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
         if (!reservation.getGuestIdKey().equals(guest.getIdKey())
-                || reservation.getStatus() != ReservationStatus.RESERVED
-                || now.isBefore(reservation.getCheckInDateTime())) {
+                || !canCheckIn(reservation)) {
             return false;
         }
         if (!now.isBefore(reservation.getCheckInDateTime().plusHours(1))) {
@@ -266,8 +285,7 @@ public class GuestService {
     public boolean checkOut(User guest, Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
         if (!reservation.getGuestIdKey().equals(guest.getIdKey())
-                || reservation.getStatus() != ReservationStatus.CHECKED_IN
-                || now.isBefore(reservation.getCheckOutDateTime())) {
+                || !canCheckOut(reservation)) {
             return false;
         }
         if (!now.isBefore(reservation.getCheckOutDateTime().plusHours(1))) {
@@ -280,8 +298,7 @@ public class GuestService {
 
     public boolean writeReview(User guest, Reservation reservation, double rating) {
         if (!reservation.getGuestIdKey().equals(guest.getIdKey())
-                || reservation.getStatus() != ReservationStatus.CHECKED_OUT
-                || reservation.getRating() != null) {
+                || !canWriteReview(reservation)) {
             return false;
         }
         reservation.setRating(rating);

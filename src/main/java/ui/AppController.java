@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class AppController {
     private final ConsoleIO io;
@@ -389,12 +390,9 @@ public class AppController {
             io.println("패널티를 보유하고 있어 예약변경이 불가합니다.");
             return false;
         }
-        Reservation reservation = chooseGuestReservation("변경할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ");
+        Reservation reservation = chooseGuestReservation(
+                "변경할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", guestService::canChange);
         if (reservation == null) {
-            return false;
-        }
-        if (!guestService.canChange(reservation)) {
-            io.println("잘못된 입력입니다.");
             return false;
         }
         Hotel hotel = guestService.findHotelByPostalCode(reservation.getPostalCode());
@@ -427,7 +425,8 @@ public class AppController {
     }
 
     private void checkInFlow() {
-        Reservation reservation = chooseGuestReservation("체크인할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ");
+        Reservation reservation = chooseGuestReservation(
+                "체크인할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", guestService::canCheckIn);
         if (reservation == null) {
             return;
         }
@@ -439,7 +438,8 @@ public class AppController {
     }
 
     private void checkOutFlow() {
-        Reservation reservation = chooseGuestReservation("체크아웃할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ");
+        Reservation reservation = chooseGuestReservation(
+                "체크아웃할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", guestService::canCheckOut);
         if (reservation == null) {
             return;
         }
@@ -451,16 +451,9 @@ public class AppController {
     }
 
     private void reviewFlow() {
-        Reservation reservation = chooseGuestReservation("평점을 작성할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ");
+        Reservation reservation = chooseGuestReservation(
+                "평점을 작성할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", guestService::canWriteReview);
         if (reservation == null) {
-            return;
-        }
-        if (reservation.getStatus() != ReservationStatus.CHECKED_OUT) {
-            io.println("잘못된 입력입니다.");
-            return;
-        }
-        if (reservation.getRating() != null) {
-            io.println("잘못된 입력입니다.");
             return;
         }
         while (true) {
@@ -484,35 +477,46 @@ public class AppController {
 
     private boolean cancelReservationFlow() {
         User guest = session.getCurrentUser();
+        if (!guestService.activePenaltiesOf(guest).isEmpty()) {
+            io.println("페널티를 보유하고 있어 예약취소가 불가합니다.");
+            return false;
+        }
         List<Reservation> reservations = guestService.reservationsOf(guest);
         if (reservations.isEmpty()) {
             io.println("취소할 예약이 없습니다.");
             return false;
         }
-        Integer index = readIndex("취소할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", reservations.size(), true);
-        if (index == null) {
-            return false;
-        }
-        Reservation reservation = reservations.get(index - 1);
-        if (!guestService.canCancel(reservation)) {
-            io.println("잘못된 입력입니다.");
+        Reservation reservation = chooseGuestReservation(
+                "취소할 예약 번호를 입력하세요. (; 입력 시 취소)\n>> ", reservations, guestService::canCancel);
+        if (reservation == null) {
             return false;
         }
         guestService.requestCancel(guest, reservation);
         return true;
     }
 
-    private Reservation chooseGuestReservation(String prompt) {
+    private Reservation chooseGuestReservation(String prompt, Predicate<Reservation> isValid) {
         List<Reservation> reservations = guestService.reservationsOf(session.getCurrentUser());
+        return chooseGuestReservation(prompt, reservations, isValid);
+    }
+
+    private Reservation chooseGuestReservation(String prompt, List<Reservation> reservations,
+                                                Predicate<Reservation> isValid) {
         if (reservations.isEmpty()) {
             io.println("대상 예약이 없습니다.");
             return null;
         }
-        Integer index = readIndex(prompt, reservations.size(), true);
-        if (index == null) {
-            return null;
+        while (true) {
+            Integer index = readIndex(prompt, reservations.size(), true);
+            if (index == null) {
+                return null;
+            }
+            Reservation reservation = reservations.get(index - 1);
+            if (isValid.test(reservation)) {
+                return reservation;
+            }
+            io.println("잘못된 입력입니다. 다시 입력해주세요.");
         }
-        return reservations.get(index - 1);
     }
 
     private void hostMenuLoop() {
