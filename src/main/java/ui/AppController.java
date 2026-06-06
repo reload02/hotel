@@ -358,7 +358,6 @@ public class AppController {
             io.println("3. 예약 변경");
             io.println("4. 평점 작성");
             io.println("5. 예약 취소");
-            io.println("6. 고객 메인 메뉴");
             String input = io.prompt(">> ");
             if ("1".equals(input)) {
                 checkInFlow();
@@ -376,7 +375,7 @@ public class AppController {
                 if (shouldReturnToMain) {
                     return;
                 }
-            } else if ("6".equals(input)) {
+            } else if (";".equals(input)) {
                 return;
             } else {
                 io.println("잘못된 입력입니다. 다시 입력해주세요.");
