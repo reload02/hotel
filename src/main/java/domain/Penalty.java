@@ -6,7 +6,7 @@ public final class Penalty {
     public static final String GLOBAL_POSTAL_CODE = "ALL";
 
     private final String guestId;
-    private final String postalCode;
+    private String postalCode;
     private final LocalDate endDate;
 
     public Penalty(String guestId, String postalCode, LocalDate endDate) {
@@ -25,6 +25,10 @@ public final class Penalty {
 
     public String getPostalCode() {
         return postalCode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        this.postalCode = postalCode;
     }
 
     public LocalDate getEndDate() {

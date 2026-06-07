@@ -3,7 +3,7 @@ package domain;
 import java.time.LocalDateTime;
 
 public final class Suspension {
-    private final String postalCode;
+    private String postalCode;
     private final LocalDateTime startAt;
     private final LocalDateTime endAt;
     private final String reason;
@@ -17,6 +17,10 @@ public final class Suspension {
 
     public String getPostalCode() {
         return postalCode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        this.postalCode = postalCode;
     }
 
     public LocalDateTime getStartAt() {

@@ -19,6 +19,7 @@ public class Reservation {
     private LocalDate cancelRequestDate;
     private LocalTime cancelRequestTime;
     private Double rating;
+    private boolean automaticSuspensionCancellation;
 
     public Reservation(String guestId,
                        String hotelName,
@@ -34,6 +35,26 @@ public class Reservation {
                        LocalDate cancelRequestDate,
                        LocalTime cancelRequestTime,
                        Double rating) {
+        this(guestId, hotelName, postalCode, roomNumber, guestCount,
+                checkInDate, checkInTime, checkOutDate, checkOutTime,
+                status, createdAt, cancelRequestDate, cancelRequestTime, rating, false);
+    }
+
+    public Reservation(String guestId,
+                       String hotelName,
+                       String postalCode,
+                       int roomNumber,
+                       int guestCount,
+                       LocalDate checkInDate,
+                       LocalTime checkInTime,
+                       LocalDate checkOutDate,
+                       LocalTime checkOutTime,
+                       ReservationStatus status,
+                       LocalDateTime createdAt,
+                       LocalDate cancelRequestDate,
+                       LocalTime cancelRequestTime,
+                       Double rating,
+                       boolean automaticSuspensionCancellation) {
         this.guestId = guestId;
         this.hotelName = hotelName;
         this.postalCode = postalCode;
@@ -48,6 +69,7 @@ public class Reservation {
         this.cancelRequestDate = cancelRequestDate;
         this.cancelRequestTime = cancelRequestTime;
         this.rating = rating;
+        this.automaticSuspensionCancellation = automaticSuspensionCancellation;
     }
 
     public String getGuestId() {
@@ -70,6 +92,10 @@ public class Reservation {
 
     public String getPostalCode() {
         return postalCode;
+    }
+
+    public void setPostalCode(String postalCode) {
+        this.postalCode = postalCode;
     }
 
     public int getRoomNumber() {
@@ -159,6 +185,14 @@ public class Reservation {
 
     public void setRating(Double rating) {
         this.rating = rating;
+    }
+
+    public boolean isAutomaticSuspensionCancellation() {
+        return automaticSuspensionCancellation;
+    }
+
+    public void markAutomaticSuspensionCancellation() {
+        this.automaticSuspensionCancellation = true;
     }
 
     public boolean isBlockingReservation() {

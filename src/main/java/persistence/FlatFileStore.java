@@ -23,8 +23,10 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class FlatFileStore {
+    private static final String AUTOMATIC_SUSPENSION_CANCELLATION = "AUTO_SUSPENSION";
     public static final String USER_FILE = "user.txt";
     public static final String HOTEL_FILE = "hotel.txt";
     public static final String ROOM_FILE = "room.txt";
@@ -231,7 +233,7 @@ public class FlatFileStore {
                 continue;
             }
             String[] tokens = cleaned.split("\t", -1);
-            if (tokens.length != 14) {
+            if (tokens.length != 14 && tokens.length != 15) {
                 throw new FatalDataException("reservation.txt " + lineNo + "행 형식 오류");
             }
             String guestId = tokens[0];
@@ -251,13 +253,21 @@ public class FlatFileStore {
                     : SpecParsers.parseTime(tokens[12], "reservation.txt " + lineNo + "행 취소 요청시각");
             Double rating = tokens[13].isEmpty() ? null
                     : SpecParsers.parseRating(tokens[13], "reservation.txt " + lineNo + "행 평점");
+            boolean automaticSuspensionCancellation = false;
+            if (tokens.length == 15) {
+                if (!tokens[14].isEmpty() && !AUTOMATIC_SUSPENSION_CANCELLATION.equals(tokens[14])) {
+                    throw new FatalDataException("reservation.txt " + lineNo + "행 자동 취소 표식 문법 오류");
+                }
+                automaticSuspensionCancellation = AUTOMATIC_SUSPENSION_CANCELLATION.equals(tokens[14]);
+            }
             SpecValidators.requireValidId(guestId, "reservation.txt " + lineNo + "행 ID");
             SpecValidators.requireValidHotelName(hotelName, "reservation.txt " + lineNo + "행 업소 이름");
             SpecValidators.requireValidPostalCode(postalCode, "reservation.txt " + lineNo + "행 우편번호");
             reservations().add(new Reservation(
                     guestId, hotelName, postalCode, roomNumber, guestCount,
                     checkInDate, checkInTime, checkOutDate, checkOutTime,
-                    status, createdAt, cancelRequestDate, cancelRequestTime, rating
+                    status, createdAt, cancelRequestDate, cancelRequestTime, rating,
+                    automaticSuspensionCancellation
             ));
         }
     }
@@ -316,7 +326,7 @@ public class FlatFileStore {
         systemState().setLastCheckedMonth(SpecParsers.parseSystemYearMonth(raw, "system.txt"));
     }
 
-    public void loadBaselineDateTime() {
+    public void loadBaselineDateTime(Consumer<String> warningSink) {
         String raw = readSingleRaw(timeFile());
         if (raw.isEmpty()) {
             setBaselineDateTime(LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0));
@@ -325,12 +335,17 @@ public class FlatFileStore {
         try {
             setBaselineDateTime(SpecParsers.parseFlexibleDateTime(raw, "time.txt"));
         } catch (FatalDataException e) {
+            warningSink.accept("경고: time.txt 값이 유효하지 않아 KST 현재 시각으로 보정합니다.");
             setBaselineDateTime(LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0));
         }
     }
 
-    public void loadAll() {
-        loadBaselineDateTime();
+    public void loadBaselineDateTime() {
+        loadBaselineDateTime(message -> { });
+    }
+
+    public void loadAll(Consumer<String> warningSink) {
+        loadBaselineDateTime(warningSink);
         loadUsers();
         loadHotels();
         loadRooms();
@@ -338,6 +353,10 @@ public class FlatFileStore {
         loadPenalties();
         loadSuspensions();
         loadSystem();
+    }
+
+    public void loadAll() {
+        loadAll(message -> { });
     }
 
     public void saveUsers() {
@@ -383,7 +402,9 @@ public class FlatFileStore {
                     + SpecParsers.formatDateTime(reservation.getCreatedAt()) + "\t"
                     + (reservation.getCancelRequestDate() == null ? "" : SpecParsers.formatDate(reservation.getCancelRequestDate())) + "\t"
                     + (reservation.getCancelRequestTime() == null ? "" : SpecParsers.formatTime(reservation.getCancelRequestTime())) + "\t"
-                    + SpecParsers.formatRating(reservation.getRating()));
+                    + SpecParsers.formatRating(reservation.getRating()) + "\t"
+                    + (reservation.isAutomaticSuspensionCancellation()
+                    ? AUTOMATIC_SUSPENSION_CANCELLATION : ""));
         }
         writeLines(reservationFile(), lines);
     }
@@ -445,6 +466,7 @@ public class FlatFileStore {
 
     private List<String> readAllLines(Path path) {
         try {
+            requireTrailingNewline(path);
             return Files.readAllLines(path, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new FatalDataException(path.getFileName() + " 읽기 실패", e);
@@ -456,11 +478,17 @@ public class FlatFileStore {
         if (lines.isEmpty()) {
             return "";
         }
-        List<String> merged = new ArrayList<>();
-        for (String line : lines) {
-            merged.add(SpecParsers.trimHorizontalWhitespace(line));
+        if (lines.size() > 1) {
+            throw new FatalDataException(path.getFileName() + " 형식 오류: 한 줄만 허용됩니다.");
         }
-        return String.join("", merged).trim();
+        return SpecParsers.trimHorizontalWhitespace(lines.get(0));
+    }
+
+    private void requireTrailingNewline(Path path) throws IOException {
+        byte[] bytes = Files.readAllBytes(path);
+        if (bytes.length > 0 && bytes[bytes.length - 1] != '\n') {
+            throw new FatalDataException(path.getFileName() + " 문법 오류: 마지막 행에 개행이 필요합니다.");
+        }
     }
 
     private void writeLines(Path path, List<String> lines) {

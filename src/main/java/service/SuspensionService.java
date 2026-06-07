@@ -81,6 +81,28 @@ public class SuspensionService {
         return changed;
     }
 
+    public boolean markLegacyAutomaticCancellations() {
+        boolean changed = false;
+        for (Reservation reservation : store.reservations()) {
+            if (reservation.isAutomaticSuspensionCancellation()
+                    || reservation.getStatus() != ReservationStatus.CANCELLED
+                    || reservation.getCancelRequestDateTime() == null) {
+                continue;
+            }
+            for (Suspension suspension : store.suspensions()) {
+                if (isLegacyAutomaticCancellation(reservation, suspension)) {
+                    reservation.markAutomaticSuspensionCancellation();
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        if (changed) {
+            store.saveReservations();
+        }
+        return changed;
+    }
+
     public void cancelOverlappingReservations(String postalCode, LocalDateTime startAt, LocalDateTime endAt) {
         for (Reservation reservation : store.reservations()) {
             if (!reservation.getPostalCode().equals(postalCode)) {
@@ -96,28 +118,20 @@ public class SuspensionService {
             reservation.setStatus(ReservationStatus.CANCELLED);
             reservation.setCancelRequest(startAt.toLocalDate(), LocalTime.MIDNIGHT);
             reservation.setRating(null);
+            reservation.markAutomaticSuspensionCancellation();
         }
     }
 
     public boolean isAutomaticSuspensionCancellation(Reservation reservation) {
-        LocalDateTime cancelAt = reservation.getCancelRequestDateTime();
-        if (cancelAt == null || reservation.getStatus() != ReservationStatus.CANCELLED) {
-            return false;
-        }
-        for (Suspension suspension : store.suspensions()) {
-            if (!suspension.getPostalCode().equals(reservation.getPostalCode())) {
-                continue;
-            }
-            if (!LOW_RATING_REASON.equals(suspension.getReason())) {
-                continue;
-            }
-            if (suspension.getStartAt().toLocalDate().equals(reservation.getCancelRequestDate())
-                    && reservation.getCancelRequestTime().equals(LocalTime.MIDNIGHT)
-                    && reservation.overlaps(suspension.getStartAt(), suspension.getEndAt())) {
-                return true;
-            }
-        }
-        return false;
+        return reservation.isAutomaticSuspensionCancellation();
+    }
+
+    private boolean isLegacyAutomaticCancellation(Reservation reservation, Suspension suspension) {
+        return suspension.getPostalCode().equals(reservation.getPostalCode())
+                && LOW_RATING_REASON.equals(suspension.getReason())
+                && suspension.getStartAt().toLocalDate().equals(reservation.getCancelRequestDate())
+                && reservation.getCancelRequestTime().equals(LocalTime.MIDNIGHT)
+                && reservation.overlaps(suspension.getStartAt(), suspension.getEndAt());
     }
 
     private Hotel findHotel(String postalCode) {

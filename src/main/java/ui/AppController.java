@@ -189,7 +189,7 @@ public class AppController {
 
     private void reserveFlow() {
         User guest = session.getCurrentUser();
-        if (!guestService.activePenaltiesOf(guest).isEmpty()) {
+        if (guestService.hasActiveGlobalPenalty(guest)) {
             io.println("페널티를 보유하고 있어 예약이 불가합니다.");
             guestBackToMenu();
             return;
@@ -197,6 +197,11 @@ public class AppController {
 
         Hotel selectedHotel = chooseHotelBySearch();
         if (selectedHotel == null) {
+            guestBackToMenu();
+            return;
+        }
+        if (guestService.hasActivePenaltyOn(guest, selectedHotel.getPostalCode())) {
+            io.println("해당 업소에 대한 페널티를 보유하고 있어 예약이 불가합니다.");
             guestBackToMenu();
             return;
         }
@@ -293,7 +298,9 @@ public class AppController {
                 }
                 return room;
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다.");
+                io.println(isSyntaxError(e)
+                        ? "방 번호 형식이 올바르지 않습니다."
+                        : "방 번호는 1 이상 9,999 이하이어야 합니다.");
             }
         }
     }
@@ -312,7 +319,9 @@ public class AppController {
                 }
                 return value;
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                io.println(isSyntaxError(e)
+                        ? "숙박인원 형식이 올바르지 않습니다."
+                        : "숙박인원은 1 이상 999 이하이어야 합니다.");
             }
         }
     }
@@ -348,11 +357,11 @@ public class AppController {
             }
             io.println("기본 체크인 시간: " + SpecParsers.formatTime(room.getCheckInTime())
                     + ", 기본 체크아웃 시간: " + SpecParsers.formatTime(room.getCheckOutTime()));
-            LocalTime checkInTime = promptTime("체크인 시간을 입력해주세요:\n>> ");
+            LocalTime checkInTime = promptReservationCheckInTime(room);
             if (checkInTime == null) {
                 return null;
             }
-            LocalTime checkOutTime = promptTime("체크아웃 시간을 입력해주세요:\n>> ");
+            LocalTime checkOutTime = promptReservationCheckOutTime(room);
             if (checkOutTime == null) {
                 return null;
             }
@@ -391,7 +400,9 @@ public class AppController {
                 SpecParsers.YearMonthValue value = SpecParsers.parseYearMonth(input, "연/월");
                 return YearMonth.of(value.year(), value.month());
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                io.println(isSyntaxError(e)
+                        ? "연/월 형식이 올바르지 않습니다."
+                        : "유효하지 않은 연/월입니다.");
             }
         }
     }
@@ -444,13 +455,13 @@ public class AppController {
 
     private boolean changeReservationFlow() {
         User guest = session.getCurrentUser();
-        if (!guestService.activePenaltiesOf(guest).isEmpty()) {
-            io.println("페널티를 보유하고 있어 예약변경이 불가합니다.");
-            return false;
-        }
         Reservation reservation = chooseGuestReservation(
                 "변경할 예약 번호를 입력하세요.\n>> ", guestService::canChange);
         if (reservation == null) {
+            return false;
+        }
+        if (guestService.hasActivePenaltyOn(guest, reservation.getPostalCode())) {
+            io.println("해당 업소에 대한 페널티를 보유하고 있어 예약변경이 불가합니다.");
             return false;
         }
         Hotel hotel = guestService.findHotelByPostalCode(reservation.getPostalCode());
@@ -532,17 +543,15 @@ public class AppController {
                 }
                 return;
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                io.println(isSyntaxError(e)
+                        ? "평점 형식이 올바르지 않습니다. 소수점 이하 첫째 자리까지만 입력해주세요."
+                        : "평점은 0.0 이상 10.0 이하이어야 합니다.");
             }
         }
     }
 
     private boolean cancelReservationFlow() {
         User guest = session.getCurrentUser();
-        if (!guestService.activePenaltiesOf(guest).isEmpty()) {
-            io.println("페널티를 보유하고 있어 예약취소가 불가합니다.");
-            return false;
-        }
         List<Reservation> reservations = guestService.reservationsOf(guest);
         if (reservations.isEmpty()) {
             io.println("취소할 예약이 없습니다.");
@@ -551,6 +560,10 @@ public class AppController {
         Reservation reservation = chooseGuestReservation(
                 "취소할 예약 순서 번호를 입력하세요.\n>> ", reservations, guestService::canCancel);
         if (reservation == null) {
+            return false;
+        }
+        if (guestService.hasActivePenaltyOn(guest, reservation.getPostalCode())) {
+            io.println("해당 업소에 대한 페널티를 보유하고 있어 예약취소가 불가합니다.");
             return false;
         }
         guestService.requestCancel(guest, reservation);
@@ -586,17 +599,23 @@ public class AppController {
             io.println("");
             io.println("업주 메뉴");
             io.println("1. 업소 등록");
-            io.println("2. 업소 정보 수정");
-            io.println("3. 예약자 관리");
-            io.println("4. 로그아웃");
+            boolean hasHotels = !hostService.hotelsByHost(session.getCurrentUser()).isEmpty();
+            if (hasHotels) {
+                io.println("2. 업소 정보 수정");
+                io.println("3. 예약자 관리");
+                io.println("4. 로그아웃");
+            } else {
+                io.println("2. 로그아웃");
+            }
             String input = io.prompt(">> ");
             if ("1".equals(input)) {
                 registerHotelFlow();
-            } else if ("2".equals(input)) {
+            } else if (hasHotels && "2".equals(input)) {
                 editHotelFlow();
-            } else if ("3".equals(input)) {
+            } else if (hasHotels && "3".equals(input)) {
                 manageReservationsFlow();
-            } else if ("4".equals(input)) {
+            } else if ((!hasHotels && "2".equals(input))
+                    || (hasHotels && "4".equals(input))) {
                 logout();
             } else {
                 io.println("잘못된 입력입니다. 다시 입력해주세요.");
@@ -663,7 +682,9 @@ public class AppController {
                 }
                 return roomNumber;
             } catch (FatalDataException e) {
-                io.println("방 번호 형식이 올바르지 않습니다.");
+                io.println(isSyntaxError(e)
+                        ? "방 번호 형식이 올바르지 않습니다."
+                        : "방 번호는 1 이상 9,999 이하이어야 합니다.");
             }
         }
     }
@@ -674,7 +695,9 @@ public class AppController {
             try {
                 return SpecParsers.parseCapacity(text, "인원 수");
             } catch (FatalDataException e) {
-                io.println("인원 수 형식이 올바르지 않습니다.");
+                io.println(isSyntaxError(e)
+                        ? "인원 수 형식이 올바르지 않습니다."
+                        : "인원 수는 1 이상 999 이하이어야 합니다.");
             }
         }
     }
@@ -684,7 +707,9 @@ public class AppController {
             try {
                 return SpecParsers.parseTime(io.prompt(prompt), "시간");
             } catch (FatalDataException e) {
-                io.println("시간 형식이 올바르지 않습니다.");
+                io.println(isSyntaxError(e)
+                        ? "시간 형식이 올바르지 않습니다."
+                        : "유효하지 않은 시간입니다.");
             }
         }
     }
@@ -805,7 +830,9 @@ public class AppController {
             try {
                 return SpecParsers.parseRoomNumber(text, "방 번호");
             } catch (FatalDataException e) {
-                io.println("방 번호 형식이 올바르지 않습니다.");
+                io.println(isSyntaxError(e)
+                        ? "방 번호 형식이 올바르지 않습니다."
+                        : "방 번호는 1 이상 9,999 이하이어야 합니다.");
             }
         }
     }
@@ -899,23 +926,57 @@ public class AppController {
             try {
                 return SpecParsers.parseDate(input, "날짜");
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                io.println(isSyntaxError(e)
+                        ? "날짜 형식이 올바르지 않습니다."
+                        : "유효하지 않은 날짜입니다.");
             }
         }
     }
 
-    private LocalTime promptTime(String prompt) {
+    private LocalTime promptReservationCheckInTime(Room room) {
         while (true) {
-            String input = io.prompt(prompt);
+            String input = io.prompt("체크인 시간을 입력해주세요:\n>> ");
             if (";".equals(input)) {
                 return null;
             }
             try {
-                return SpecParsers.parseTime(input, "시간");
+                LocalTime time = SpecParsers.parseTime(input, "체크인 시간");
+                if (time.isBefore(room.getCheckInTime())) {
+                    io.println("체크인 시간은 객실 기본 체크인 시간보다 같거나 늦어야 합니다.");
+                    continue;
+                }
+                return time;
             } catch (FatalDataException e) {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                io.println(isSyntaxError(e)
+                        ? "체크인 시간 형식이 올바르지 않습니다."
+                        : "유효하지 않은 체크인 시간입니다.");
             }
         }
+    }
+
+    private LocalTime promptReservationCheckOutTime(Room room) {
+        while (true) {
+            String input = io.prompt("체크아웃 시간을 입력해주세요:\n>> ");
+            if (";".equals(input)) {
+                return null;
+            }
+            try {
+                LocalTime time = SpecParsers.parseTime(input, "체크아웃 시간");
+                if (time.isAfter(room.getCheckOutTime())) {
+                    io.println("체크아웃 시간은 객실 기본 체크아웃 시간보다 같거나 빨라야 합니다.");
+                    continue;
+                }
+                return time;
+            } catch (FatalDataException e) {
+                io.println(isSyntaxError(e)
+                        ? "체크아웃 시간 형식이 올바르지 않습니다."
+                        : "유효하지 않은 체크아웃 시간입니다.");
+            }
+        }
+    }
+
+    private boolean isSyntaxError(FatalDataException exception) {
+        return exception.getMessage() != null && exception.getMessage().endsWith("문법 오류");
     }
 
     private Integer readIndex(String prompt, int size, boolean allowBack) {

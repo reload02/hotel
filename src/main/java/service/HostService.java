@@ -2,9 +2,11 @@ package service;
 
 import common.FatalDataException;
 import domain.Hotel;
+import domain.Penalty;
 import domain.Reservation;
 import domain.ReservationStatus;
 import domain.Room;
+import domain.Suspension;
 import domain.User;
 import persistence.FlatFileStore;
 
@@ -105,8 +107,26 @@ public class HostService {
                 room.setPostalCode(newPostalCode);
             }
         }
+        for (Reservation reservation : store.reservations()) {
+            if (reservation.getPostalCode().equals(oldPostalCode)) {
+                reservation.setPostalCode(newPostalCode);
+            }
+        }
+        for (Penalty penalty : store.penalties()) {
+            if (penalty.getPostalCode().equals(oldPostalCode)) {
+                penalty.setPostalCode(newPostalCode);
+            }
+        }
+        for (Suspension suspension : store.suspensions()) {
+            if (suspension.getPostalCode().equals(oldPostalCode)) {
+                suspension.setPostalCode(newPostalCode);
+            }
+        }
         store.saveHotels();
         store.saveRooms();
+        store.saveReservations();
+        store.savePenalties();
+        store.saveSuspensions();
     }
 
     public void updateRoomNumber(Room room, int newRoomNumber) {

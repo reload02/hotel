@@ -41,7 +41,7 @@ public class IntegrityService {
 
     public void initialize() {
         ensureDataFiles();
-        store.loadAll();
+        store.loadAll(message -> io.println(message));
         validateSemantics();
         runAutomaticMaintenance();
         validateSemantics();
@@ -50,6 +50,7 @@ public class IntegrityService {
 
     public void runAutomaticMaintenance() {
         LocalDateTime now = store.baselineDateTime();
+        suspensionService.markLegacyAutomaticCancellations();
         penaltyService.purgeExpired(now.toLocalDate());
         suspensionService.purgeExpired(now);
         guestService.restoreExpiredCancelPending(now);
@@ -127,6 +128,9 @@ public class IntegrityService {
             if (!reservation.getCheckOutDate().equals(reservation.getCheckInDate().plusDays(1))) {
                 throw new FatalDataException("reservation.txt 의미 오류: 예약은 1박 2일이어야 합니다.");
             }
+            if (!reservation.getCheckInDate().isAfter(reservation.getCreatedAt().toLocalDate())) {
+                throw new FatalDataException("reservation.txt 의미 오류: 체크인 날짜는 예약 생성 날짜보다 이후여야 합니다.");
+            }
             validateReservationStateFields(reservation);
             for (int j = i + 1; j < store.reservations().size(); j++) {
                 Reservation other = store.reservations().get(j);
@@ -162,6 +166,10 @@ public class IntegrityService {
         if (reservation.getStatus() != ReservationStatus.CHECKED_OUT && reservation.getRating() != null) {
             throw new FatalDataException("reservation.txt 의미 오류: CHECKED_OUT이 아닌 예약에 평점 존재");
         }
+        if (reservation.isAutomaticSuspensionCancellation()
+                && reservation.getStatus() != ReservationStatus.CANCELLED) {
+            throw new FatalDataException("reservation.txt 의미 오류: 자동 영업정지 취소 표식은 CANCELLED 상태에만 허용됩니다.");
+        }
     }
 
     private void validatePenalties() {
@@ -183,6 +191,9 @@ public class IntegrityService {
             }
             if (!suspension.getStartAt().isBefore(suspension.getEndAt())) {
                 throw new FatalDataException("suspension.txt 의미 오류: 영업정지 시작은 종료보다 이전이어야 합니다.");
+            }
+            if (suspension.getReason().trim().isEmpty()) {
+                throw new FatalDataException("suspension.txt 의미 오류: 영업정지 사유가 비어 있습니다.");
             }
         }
     }

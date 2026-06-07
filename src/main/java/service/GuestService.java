@@ -149,7 +149,7 @@ public class GuestService {
                 || !store.baselineDateTime().isBefore(reservation.getCheckInDateTime())) {
             throw new IllegalArgumentException("변경할 수 없는 예약입니다.");
         }
-        if (!activePenaltiesOf(guest).isEmpty()) {
+        if (hasActivePenaltyOn(guest, reservation.getPostalCode())) {
             throw new IllegalArgumentException("페널티를 보유하고 있어 예약이 불가합니다.");
         }
         if (!reservation.getPostalCode().equals(hotel.getPostalCode())) {
@@ -230,12 +230,14 @@ public class GuestService {
     public boolean canCheckIn(Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
         return reservation.getStatus() == ReservationStatus.RESERVED
+                && now.toLocalDate().equals(reservation.getCheckInDate())
                 && !now.isBefore(reservation.getCheckInDateTime());
     }
 
     public boolean canCheckOut(Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
         return reservation.getStatus() == ReservationStatus.CHECKED_IN
+                && now.toLocalDate().equals(reservation.getCheckOutDate())
                 && !now.isBefore(reservation.getCheckOutDateTime());
     }
 
@@ -246,7 +248,7 @@ public class GuestService {
 
     public void requestCancel(User guest, Reservation reservation) {
         LocalDateTime now = store.baselineDateTime();
-        if (!activePenaltiesOf(guest).isEmpty()) {
+        if (hasActivePenaltyOn(guest, reservation.getPostalCode())) {
             throw new IllegalArgumentException("페널티를 보유하고 있어 예약취소가 불가합니다.");
         }
         if (!canCancel(reservation)) {
@@ -340,10 +342,18 @@ public class GuestService {
         return penaltyService.activePenaltiesOf(user, store.baselineDate());
     }
 
+    public boolean hasActiveGlobalPenalty(User user) {
+        return penaltyService.hasActiveGlobalPenalty(user, store.baselineDate());
+    }
+
+    public boolean hasActivePenaltyOn(User user, String postalCode) {
+        return penaltyService.hasActivePenaltyOn(user, postalCode, store.baselineDate());
+    }
+
     private void validateReservable(User guest, String postalCode, Room room, int guestCount,
                                     LocalDateTime start, LocalDateTime end, Reservation exclude) {
         LocalDate today = store.baselineDate();
-        if (!activePenaltiesOf(guest).isEmpty()) {
+        if (hasActivePenaltyOn(guest, postalCode)) {
             throw new IllegalArgumentException("페널티를 보유하고 있어 예약이 불가합니다.");
         }
         if (!start.toLocalDate().isAfter(today)) {

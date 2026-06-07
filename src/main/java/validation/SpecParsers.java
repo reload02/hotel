@@ -19,6 +19,7 @@ public final class SpecParsers {
     private static final Pattern YEAR_MONTH = Pattern.compile("^([0-9]{2}|[0-9]{4})([_\\-./])([0-9]{1,2})$");
     private static final Pattern SYSTEM_YEAR_MONTH = Pattern.compile("^([0-9]{4})-([0-9]{2})$");
     private static final Pattern TIME = Pattern.compile("^([0-9]{1,2})([:/.-])([0-9]{1,2})(?:\\s?(AM|am|a|PM|pm|p))?$");
+    private static final Pattern RATING = Pattern.compile("^[0-9]+(?:\\.[0-9])?$");
     private static final DateTimeFormatter DATE_OUT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_OUT = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_TIME_OUT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -126,7 +127,7 @@ public final class SpecParsers {
     public static int parseRoomNumber(String input, String context) {
         SpecValidators.requireValidRoomNumberText(input, context);
         int value = Integer.parseInt(input);
-        if (value < 1 || value > 10_000) {
+        if (value < 1 || value >= 10_000) {
             throw new FatalDataException(context + " 의미 오류");
         }
         return value;
@@ -135,13 +136,16 @@ public final class SpecParsers {
     public static int parseCapacity(String input, String context) {
         SpecValidators.requireValidCapacityText(input, context);
         int value = Integer.parseInt(input);
-        if (value < 1 || value > 1_000) {
+        if (value < 1 || value >= 1_000) {
             throw new FatalDataException(context + " 의미 오류");
         }
         return value;
     }
 
     public static double parseRating(String input, String context) {
+        if (!RATING.matcher(input).matches()) {
+            throw new FatalDataException(context + " 문법 오류");
+        }
         try {
             double value = Double.parseDouble(input);
             if (Double.isNaN(value) || Double.isInfinite(value) || value < 0.0 || value > 10.0) {
