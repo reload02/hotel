@@ -848,7 +848,7 @@ public class AppController {
             io.println("예약 목록");
             io.println("취소를 승인하려면 해당 예약내역의 번호를 입력하세요.");
             for (int i = 0; i < reservations.size(); i++) {
-                io.println((i + 1) + ". " + Formatters.reservationShort(reservations.get(i)));
+                io.println((i + 1) + ". " + Formatters.reservationMana(reservations.get(i)));
             }
             Integer index = readIndex(">> ", reservations.size(), true);
             if (index == null) {
@@ -861,7 +861,7 @@ public class AppController {
                 continue;
             }
             io.println("취소 승인 및 예약 조회");
-            io.println(Formatters.reservationShort(reservation));
+            io.println(Formatters.reservationMana(reservation));
             String yn = promptYesNo("해당 예약을 취소 승인하시겠습니까? (y/n) : ");
             boolean processed = hostService.processCancellation(reservation, "y".equals(yn));
             if (!processed) {
