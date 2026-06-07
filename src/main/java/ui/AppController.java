@@ -861,7 +861,7 @@ public class AppController {
                 continue;
             }
             io.println("취소 승인 및 예약 조회");
-            io.println(Formatters.reservationShort(reservation));
+            io.println(Formatters.reservationMana(reservation));
             String yn = promptYesNo("해당 예약을 취소 승인하시겠습니까? (y/n) : ");
             boolean processed = hostService.processCancellation(reservation, "y".equals(yn));
             if (!processed) {
