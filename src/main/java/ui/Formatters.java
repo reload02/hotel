@@ -28,6 +28,14 @@ public final class Formatters {
                 + SpecParsers.formatTime(room.getCheckOutTime());
     }
 
+    public static String reservationMana(Reservation reservation) {
+        return "[" + reservation.getStatus().code() + "] "
+                + reservation.getHotelName() + " " + reservation.getPostalCode() + " "
+                + SpecParsers.formatDateTime(reservation.getCheckInDateTime()) + " ~ "
+                + SpecParsers.formatDateTime(reservation.getCheckOutDateTime()) + " "
+                + reservation.getRoomNumber();
+    }
+
     public static String reservationShort(Reservation reservation) {
         return "[" + reservation.getStatus().code() + "] "
                 + reservation.getHotelName() + " " + reservation.getPostalCode() + " "

@@ -848,7 +848,7 @@ public class AppController {
             io.println("예약 목록");
             io.println("취소를 승인하려면 해당 예약내역의 번호를 입력하세요.");
             for (int i = 0; i < reservations.size(); i++) {
-                io.println((i + 1) + ". " + Formatters.reservationShort(reservations.get(i)));
+                io.println((i + 1) + ". " + Formatters.reservationMana(reservations.get(i)));
             }
             Integer index = readIndex(">> ", reservations.size(), true);
             if (index == null) {
