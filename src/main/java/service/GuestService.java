@@ -364,7 +364,7 @@ public class GuestService {
             throw new IllegalArgumentException("예약 인원이 객실 정원을 초과합니다.");
         }
         if (isHotelSuspensionOverlapping(postalCode, start, end)) {
-            throw new IllegalArgumentException("영업정지 기간과 겹쳐 예약할 수 없습니다.");
+            throw new IllegalArgumentException("선택한 기간은 업소 영업정지 기간에 포함됩니다.");
         }
         if (isTimeOverlapping(postalCode, room.getRoomNumber(), start, end, exclude)) {
             throw new IllegalArgumentException("이미 점유된 시간과 겹쳐 예약할 수 없습니다.");

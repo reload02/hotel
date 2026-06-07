@@ -16,13 +16,20 @@ public final class Formatters {
 
     public static String roomLine(Room room) {
         return room.getRoomNumber() + " | "
-                + SpecParsers.formatTime(room.getCheckInTime()) + " ~ "
+                + SpecParsers.formatTime(room.getCheckInTime()) + ", "
                 + SpecParsers.formatTime(room.getCheckOutTime()) + " | "
                 + room.getCapacity() + "명";
     }
 
+    public static String ownedRoomLine(Room room) {
+        return room.getRoomNumber() + ", "
+                + room.getCapacity() + "명, "
+                + SpecParsers.formatTime(room.getCheckInTime()) + ", "
+                + SpecParsers.formatTime(room.getCheckOutTime());
+    }
+
     public static String reservationShort(Reservation reservation) {
-        return "[" + reservation.getStatus().displayName() + "] "
+        return "[" + reservation.getStatus().code() + "] "
                 + reservation.getHotelName() + " " + reservation.getPostalCode() + " "
                 + reservation.getRoomNumber() + "호 "
                 + SpecParsers.formatDateTime(reservation.getCheckInDateTime()) + " ~ "
@@ -31,13 +38,15 @@ public final class Formatters {
 
     public static String reservationLong(Reservation reservation) {
         String rating = reservation.getRating() == null ? "미작성" : SpecParsers.formatRating(reservation.getRating());
-        return reservation.getHotelName() + ", "
-                + reservation.getPostalCode() + ", "
-                + reservation.getRoomNumber() + "호, "
-                + reservation.getGuestCount() + "명, "
+        return "[" + reservation.getStatus().code() + "] "
+                + reservation.getHotelName() + " "
+                + reservation.getPostalCode() + " "
+                + reservation.getRoomNumber() + "호 "
                 + SpecParsers.formatDateTime(reservation.getCheckInDateTime()) + " ~ "
-                + SpecParsers.formatDateTime(reservation.getCheckOutDateTime()) + ", "
-                + reservation.getStatus().displayName() + ", 평점 " + rating;
+                + SpecParsers.formatDateTime(reservation.getCheckOutDateTime()) + " | "
+                + "인원 " + reservation.getGuestCount() + "명 | "
+                + "생성 " + SpecParsers.formatDateTime(reservation.getCreatedAt()) + " | "
+                + "평점 " + rating;
     }
 
     public static String bookingSummary(Hotel hotel, Room room, int guestCount,
