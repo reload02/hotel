@@ -2,7 +2,6 @@ package ui;
 
 import common.FatalDataException;
 import domain.Hotel;
-import domain.Penalty;
 import domain.Reservation;
 import domain.ReservationStatus;
 import domain.Role;
@@ -20,6 +19,7 @@ import validation.SpecValidators;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -189,7 +189,11 @@ public class AppController {
 
     private void reserveFlow() {
         User guest = session.getCurrentUser();
-        printActivePenalties(guest);
+        if (!guestService.activePenaltiesOf(guest).isEmpty()) {
+            io.println("페널티를 보유하고 있어 예약이 불가합니다.");
+            guestBackToMenu();
+            return;
+        }
 
         Hotel selectedHotel = chooseHotelBySearch();
         if (selectedHotel == null) {
@@ -209,7 +213,7 @@ public class AppController {
             return;
         }
 
-        StayInput stayInput = promptStayPeriod(selectedRoom);
+        StayInput stayInput = promptStayPeriod(selectedHotel, selectedRoom, null);
         if (stayInput == null) {
             guestBackToMenu();
             return;
@@ -217,7 +221,7 @@ public class AppController {
 
         try {
             guestService.createReservation(guest, selectedHotel, selectedRoom, guestCount,
-                    stayInput.checkInDate, stayInput.checkInTime, stayInput.checkOutDate, stayInput.checkOutTime);
+                    stayInput.checkInDate, stayInput.checkInTime, stayInput.checkOutTime);
             io.println(Formatters.bookingSummary(selectedHotel, selectedRoom, guestCount,
                     stayInput.checkInDate, stayInput.checkInTime, stayInput.checkOutDate, stayInput.checkOutTime));
             io.println("예약이 완료되었습니다.");
@@ -312,27 +316,81 @@ public class AppController {
         }
     }
 
-    private StayInput promptStayPeriod(Room room) {
+    private StayInput promptStayPeriod(Hotel hotel, Room room, Reservation exclude) {
         while (true) {
-            io.println("기본 체크인 시간: " + SpecParsers.formatTime(room.getCheckInTime())
-                    + ", 기본 체크아웃 시간: " + SpecParsers.formatTime(room.getCheckOutTime()));
-            LocalDate checkInDate = promptDate("체크인 날짜를 입력하세요. (; 입력 시 취소)\n>> ");
-            if (checkInDate == null) {
+            io.println("예약 날짜 메뉴");
+            io.println("1. 날짜 확인");
+            io.println("2. 날짜 확정");
+            String menuInput = io.prompt(">> ");
+            if (";".equals(menuInput)) {
                 return null;
             }
-            LocalTime checkInTime = promptTime("체크인 시간을 입력하세요. (; 입력 시 취소)\n>> ");
+            if ("1".equals(menuInput)) {
+                YearMonth yearMonth = promptYearMonth(
+                        "예약 가능 여부를 확인하고 싶은 날짜를 입력해주세요. (연/월) (; 입력 시 뒤로)\n>> ");
+                if (yearMonth != null) {
+                    CalendarPrinter.print(io, yearMonth.getYear(), yearMonth.getMonthValue(),
+                            date -> guestService.isDateBlocked(
+                                    hotel.getPostalCode(), room.getRoomNumber(), date,
+                                    guestService.baselineDate(), exclude));
+                }
+                continue;
+            }
+            if (!"2".equals(menuInput)) {
+                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                continue;
+            }
+
+            LocalDate checkInDate = promptReservableDate(hotel, room, exclude);
+            if (checkInDate == null) {
+                continue;
+            }
+            io.println("기본 체크인 시간: " + SpecParsers.formatTime(room.getCheckInTime())
+                    + ", 기본 체크아웃 시간: " + SpecParsers.formatTime(room.getCheckOutTime()));
+            LocalTime checkInTime = promptTime("체크인 시간을 입력해주세요: (; 입력 시 취소)\n>> ");
             if (checkInTime == null) {
                 return null;
             }
-            LocalDate checkOutDate = promptDate("체크아웃 날짜를 입력하세요. (; 입력 시 취소)\n>> ");
-            if (checkOutDate == null) {
-                return null;
-            }
-            LocalTime checkOutTime = promptTime("체크아웃 시간을 입력하세요. (; 입력 시 취소)\n>> ");
+            LocalTime checkOutTime = promptTime("체크아웃 시간을 입력해주세요: (; 입력 시 취소)\n>> ");
             if (checkOutTime == null) {
                 return null;
             }
-            return new StayInput(checkInDate, checkInTime, checkOutDate, checkOutTime);
+            return new StayInput(checkInDate, checkInTime, checkInDate.plusDays(1), checkOutTime);
+        }
+    }
+
+    private LocalDate promptReservableDate(Hotel hotel, Room room, Reservation exclude) {
+        while (true) {
+            LocalDate date = promptDate(
+                    "예약 가능 여부를 확인하고 싶은 날짜를 입력해주세요. (연/월/일) (; 입력 시 뒤로)\n>> ");
+            if (date == null) {
+                return null;
+            }
+            if (!date.isAfter(guestService.baselineDate())) {
+                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                continue;
+            }
+            if (guestService.isDateBlocked(hotel.getPostalCode(), room.getRoomNumber(), date,
+                    guestService.baselineDate(), exclude)) {
+                io.println("이미 예약되어 있는 날짜입니다. 다른 날짜를 입력해주세요.");
+                continue;
+            }
+            return date;
+        }
+    }
+
+    private YearMonth promptYearMonth(String prompt) {
+        while (true) {
+            String input = io.prompt(prompt);
+            if (";".equals(input)) {
+                return null;
+            }
+            try {
+                SpecParsers.YearMonthValue value = SpecParsers.parseYearMonth(input, "연/월");
+                return YearMonth.of(value.year(), value.month());
+            } catch (FatalDataException e) {
+                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+            }
         }
     }
 
@@ -408,13 +466,13 @@ public class AppController {
         if (guestCount == null) {
             return false;
         }
-        StayInput stayInput = promptStayPeriod(room);
+        StayInput stayInput = promptStayPeriod(hotel, room, reservation);
         if (stayInput == null) {
             return false;
         }
         try {
             guestService.replaceReservation(guest, reservation, hotel, room, guestCount,
-                    stayInput.checkInDate, stayInput.checkInTime, stayInput.checkOutDate, stayInput.checkOutTime);
+                    stayInput.checkInDate, stayInput.checkInTime, stayInput.checkOutTime);
             io.println("예약이 변경되었습니다.");
             return true;
         } catch (IllegalArgumentException e) {
@@ -824,17 +882,6 @@ public class AppController {
             } catch (FatalDataException e) {
                 io.println("잘못된 기준 시간입니다. 현재 기준 시간보다 미래의 값만 입력할 수 있습니다.");
             }
-        }
-    }
-
-    private void printActivePenalties(User guest) {
-        List<Penalty> penalties = guestService.activePenaltiesOf(guest);
-        if (penalties.isEmpty()) {
-            return;
-        }
-        io.println("현재 활성 패널티");
-        for (Penalty penalty : penalties) {
-            io.println("- " + Formatters.penaltyLine(penalty));
         }
     }
 

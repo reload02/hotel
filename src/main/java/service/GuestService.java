@@ -91,13 +91,14 @@ public class GuestService {
         return null;
     }
 
-    public boolean isDateBlocked(String postalCode, int roomNumber, LocalDate date, LocalDate baselineDate) {
+    public boolean isDateBlocked(String postalCode, int roomNumber, LocalDate date,
+                                 LocalDate baselineDate, Reservation exclude) {
         if (!date.isAfter(baselineDate)) {
             return true;
         }
         LocalDateTime dayStart = date.atStartOfDay();
         LocalDateTime dayEnd = dayStart.plusDays(1);
-        return isTimeOverlapping(postalCode, roomNumber, dayStart, dayEnd, null)
+        return isTimeOverlapping(postalCode, roomNumber, dayStart, dayEnd, exclude)
                 || isHotelSuspensionOverlapping(postalCode, dayStart, dayEnd);
     }
 
@@ -120,7 +121,8 @@ public class GuestService {
 
     public Reservation createReservation(User guest, Hotel hotel, Room room, int guestCount,
                                          LocalDate checkInDate, LocalTime checkInTime,
-                                         LocalDate checkOutDate, LocalTime checkOutTime) {
+                                         LocalTime checkOutTime) {
+        LocalDate checkOutDate = checkInDate.plusDays(1);
         validateReservable(guest, hotel.getPostalCode(), room, guestCount,
                 LocalDateTime.of(checkInDate, checkInTime),
                 LocalDateTime.of(checkOutDate, checkOutTime), null);
@@ -141,7 +143,6 @@ public class GuestService {
                                    int guestCount,
                                    LocalDate checkInDate,
                                    LocalTime checkInTime,
-                                   LocalDate checkOutDate,
                                    LocalTime checkOutTime) {
         if (!reservation.getGuestIdKey().equals(guest.getIdKey())
                 || reservation.getStatus() != ReservationStatus.RESERVED
@@ -149,11 +150,12 @@ public class GuestService {
             throw new IllegalArgumentException("변경할 수 없는 예약입니다.");
         }
         if (!activePenaltiesOf(guest).isEmpty()) {
-            throw new IllegalArgumentException("패널티를 보유하고 있어 예약변경이 불가합니다.");
+            throw new IllegalArgumentException("페널티를 보유하고 있어 예약이 불가합니다.");
         }
         if (!reservation.getPostalCode().equals(hotel.getPostalCode())) {
             throw new IllegalArgumentException("예약변경 시 업소를 변경할 수 없습니다.");
         }
+        LocalDate checkOutDate = checkInDate.plusDays(1);
         LocalDateTime newStart = LocalDateTime.of(checkInDate, checkInTime);
         LocalDateTime newEnd = LocalDateTime.of(checkOutDate, checkOutTime);
         validateReservable(guest, hotel.getPostalCode(), room, guestCount, newStart, newEnd, reservation);
@@ -341,11 +343,8 @@ public class GuestService {
     private void validateReservable(User guest, String postalCode, Room room, int guestCount,
                                     LocalDateTime start, LocalDateTime end, Reservation exclude) {
         LocalDate today = store.baselineDate();
-        if (penaltyService.hasActiveGlobalPenalty(guest, today)) {
-            throw new IllegalArgumentException("전역 패널티가 활성 상태입니다.");
-        }
-        if (penaltyService.hasActivePenaltyOn(guest, postalCode, today)) {
-            throw new IllegalArgumentException("해당 업소 패널티가 활성 상태입니다.");
+        if (!activePenaltiesOf(guest).isEmpty()) {
+            throw new IllegalArgumentException("페널티를 보유하고 있어 예약이 불가합니다.");
         }
         if (!start.toLocalDate().isAfter(today)) {
             throw new IllegalArgumentException("당일 또는 과거 예약은 불가능합니다.");

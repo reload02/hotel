@@ -124,6 +124,9 @@ public class IntegrityService {
             if (!reservation.getCheckOutDateTime().isAfter(reservation.getCheckInDateTime())) {
                 throw new FatalDataException("reservation.txt 의미 오류: 체크아웃이 체크인보다 늦어야 합니다.");
             }
+            if (!reservation.getCheckOutDate().equals(reservation.getCheckInDate().plusDays(1))) {
+                throw new FatalDataException("reservation.txt 의미 오류: 예약은 1박 2일이어야 합니다.");
+            }
             validateReservationStateFields(reservation);
             for (int j = i + 1; j < store.reservations().size(); j++) {
                 Reservation other = store.reservations().get(j);
