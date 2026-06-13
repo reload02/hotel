@@ -48,9 +48,13 @@ public class AppController {
     }
 
     public void run() {
-        integrityService.initialize();
-        while (showInitialMenu()) {
-            // main loop
+        try {
+            integrityService.initialize();
+            while (showInitialMenu()) {
+                // main loop
+            }
+        } catch (TerminateProgramSignal ignored) {
+            terminateProgram();
         }
     }
 
@@ -59,7 +63,7 @@ public class AppController {
         io.println("현재 기준 시간 : " + SpecParsers.formatDateTime(store.baselineDateTime()));
         io.println("1. 로그인");
         io.println("2. 회원가입");
-        String input = io.prompt(">> ");
+        String input = promptAtMainMenu(">> ");
         if ("1".equals(input)) {
             loginFlow();
             return true;
@@ -68,10 +72,6 @@ public class AppController {
             signUpFlow();
             return true;
         }
-        if (";;".equals(input)) {
-            io.println("프로그램을 종료 합니다.");
-            return false;
-        }
         io.println("메뉴 번호는 1 또는 2를 입력해야 합니다.");
         return true;
     }
@@ -79,7 +79,7 @@ public class AppController {
     private void loginFlow() {
         User user = null;
         while (user == null) {
-            String id = io.prompt("아이디 : ");
+            String id = promptWithoutCommands("아이디 : ");
             if (!SpecValidators.isValidId(id)) {
                 io.println("잘못된 아이디입니다. 다시 입력해주세요.");
                 continue;
@@ -91,7 +91,7 @@ public class AppController {
         }
 
         while (true) {
-            String password = io.prompt("비밀번호 : ");
+            String password = promptWithoutCommands("비밀번호 : ");
             if (!SpecValidators.isValidPassword(password)) {
                 io.println("잘못된 비밀번호입니다. 다시 입력해주세요.");
                 continue;
@@ -116,7 +116,7 @@ public class AppController {
     private void signUpFlow() {
         String name;
         while (true) {
-            name = io.prompt("이름 : ");
+            name = promptWithoutCommands("이름 : ");
             if (SpecValidators.isValidUserName(name)) {
                 break;
             }
@@ -125,7 +125,7 @@ public class AppController {
 
         String id;
         while (true) {
-            id = io.prompt("아이디 : ");
+            id = promptWithoutCommands("아이디 : ");
             if (!SpecValidators.isValidId(id)) {
                 io.println("잘못된 아이디입니다. 다시 입력해주세요.");
                 continue;
@@ -139,7 +139,7 @@ public class AppController {
 
         String password;
         while (true) {
-            password = io.prompt("비밀번호 : ");
+            password = promptWithoutCommands("비밀번호 : ");
             if (SpecValidators.isValidPassword(password)) {
                 break;
             }
@@ -149,7 +149,7 @@ public class AppController {
 
         Role role;
         while (true) {
-            String roleText = io.prompt("자신의 역할을 입력하세요 (Host / Guest / Admin) : ");
+            String roleText = promptWithoutCommands("자신의 역할을 입력하세요 (Host / Guest / Admin) : ");
             try {
                 role = SpecParsers.parseRole(roleText, "권한");
                 break;
@@ -163,26 +163,30 @@ public class AppController {
 
     private void guestMenuLoop() {
         while (session.isLoggedIn()) {
-            io.println("");
-            io.println("고객 메뉴");
-            io.println("1. 예약");
-            boolean hasReservations = !guestService.reservationsOf(session.getCurrentUser()).isEmpty();
-            if (hasReservations) {
-                io.println("2. 기록조회");
-                io.println("3. 로그아웃");
-            } else {
-                io.println("2. 로그아웃");
-            }
-            String input = io.prompt(">> ");
-            if ("1".equals(input)) {
-                reserveFlow();
-            } else if (hasReservations && "2".equals(input)) {
-                guestReservationHistoryLoop();
-            } else if ((!hasReservations && "2".equals(input))
-                    || (hasReservations && "3".equals(input))) {
-                logout();
-            } else {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+            try {
+                io.println("");
+                io.println("고객 메뉴");
+                io.println("1. 예약");
+                boolean hasReservations = !guestService.reservationsOf(session.getCurrentUser()).isEmpty();
+                if (hasReservations) {
+                    io.println("2. 기록조회");
+                    io.println("3. 로그아웃");
+                } else {
+                    io.println("2. 로그아웃");
+                }
+                String input = promptAtMainMenu(">> ");
+                if ("1".equals(input)) {
+                    reserveFlow();
+                } else if (hasReservations && "2".equals(input)) {
+                    guestReservationHistoryLoop();
+                } else if ((!hasReservations && "2".equals(input))
+                        || (hasReservations && "3".equals(input))) {
+                    logout();
+                } else {
+                    io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                }
+            } catch (ReturnToUserMainMenuSignal ignored) {
+                returnToUserMainMenu();
             }
         }
     }
@@ -249,10 +253,7 @@ public class AppController {
         }
 
         while (true) {
-            String input = io.prompt("업소 이름을 입력하세요\n>> ");
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow("업소 이름을 입력하세요\n>> ");
             if (!SpecValidators.isValidHotelName(input)) {
                 io.println("존재하지 않는 업소 이름입니다. 다시 입력해주세요.");
                 continue;
@@ -266,7 +267,7 @@ public class AppController {
             for (int i = 0; i < results.size(); i++) {
                 io.println((i + 1) + ". " + Formatters.hotelLine(results.get(i)));
             }
-            Integer index = readIndex("예약을 원하는 번호를 입력하세요\n>> ", results.size(), true);
+            Integer index = readIndex("예약을 원하는 번호를 입력하세요\n>> ", results.size());
             if (index == null) {
                 return null;
             }
@@ -285,10 +286,7 @@ public class AppController {
             io.println(Formatters.roomLine(room));
         }
         while (true) {
-            String input = io.prompt("원하는 방 번호를 입력하세요\n>> ");
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow("원하는 방 번호를 입력하세요\n>> ");
             try {
                 int roomNumber = SpecParsers.parseRoomNumber(input, "방 번호");
                 Room room = guestService.findRoom(hotel.getPostalCode(), roomNumber);
@@ -307,10 +305,7 @@ public class AppController {
 
     private Integer chooseGuestCount(Room room) {
         while (true) {
-            String input = io.prompt("숙박인원을 입력해주세요.\n>> ");
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow("숙박인원을 입력해주세요.\n>> ");
             try {
                 int value = SpecParsers.parseCapacity(input, "투숙 인원");
                 if (value > room.getCapacity()) {
@@ -331,10 +326,7 @@ public class AppController {
             io.println("예약 날짜 메뉴");
             io.println("1. 날짜 확인");
             io.println("2. 날짜 확정");
-            String menuInput = io.prompt(">> ");
-            if (";".equals(menuInput)) {
-                return null;
-            }
+            String menuInput = promptInFlow(">> ");
             if ("1".equals(menuInput)) {
                 YearMonth yearMonth = promptYearMonth(
                         "예약 가능 여부를 확인하고 싶은 날짜를 입력해주세요. (연/월)\n>> ");
@@ -392,10 +384,7 @@ public class AppController {
 
     private YearMonth promptYearMonth(String prompt) {
         while (true) {
-            String input = io.prompt(prompt);
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow(prompt);
             try {
                 SpecParsers.YearMonthValue value = SpecParsers.parseYearMonth(input, "연/월");
                 return YearMonth.of(value.year(), value.month());
@@ -428,7 +417,7 @@ public class AppController {
             io.println("3. 예약 변경");
             io.println("4. 평점 작성");
             io.println("5. 예약 취소");
-            String input = io.prompt(">> ");
+            String input = promptInFlow(">> ");
             if ("1".equals(input)) {
                 checkInFlow();
             } else if ("2".equals(input)) {
@@ -445,8 +434,6 @@ public class AppController {
                 if (shouldReturnToMain) {
                     return;
                 }
-            } else if (";".equals(input)) {
-                return;
             } else {
                 io.println("잘못된 입력입니다. 다시 입력해주세요.");
             }
@@ -530,10 +517,7 @@ public class AppController {
             return;
         }
         while (true) {
-            String input = io.prompt("평점 (0~10): ");
-            if (";".equals(input)) {
-                return;
-            }
+            String input = promptInFlow("평점 (0~10): ");
             try {
                 double rating = SpecParsers.parseRating(input, "평점");
                 if (guestService.writeReview(session.getCurrentUser(), reservation, rating)) {
@@ -582,7 +566,7 @@ public class AppController {
             return null;
         }
         while (true) {
-            Integer index = readIndex(prompt, reservations.size(), true);
+            Integer index = readIndex(prompt, reservations.size());
             if (index == null) {
                 return null;
             }
@@ -596,29 +580,33 @@ public class AppController {
 
     private void hostMenuLoop() {
         while (session.isLoggedIn()) {
-            io.println("");
-            io.println("업주 메뉴");
-            io.println("1. 업소 등록");
-            boolean hasHotels = !hostService.hotelsByHost(session.getCurrentUser()).isEmpty();
-            if (hasHotels) {
-                io.println("2. 업소 정보 수정");
-                io.println("3. 예약자 관리");
-                io.println("4. 로그아웃");
-            } else {
-                io.println("2. 로그아웃");
-            }
-            String input = io.prompt(">> ");
-            if ("1".equals(input)) {
-                registerHotelFlow();
-            } else if (hasHotels && "2".equals(input)) {
-                editHotelFlow();
-            } else if (hasHotels && "3".equals(input)) {
-                manageReservationsFlow();
-            } else if ((!hasHotels && "2".equals(input))
-                    || (hasHotels && "4".equals(input))) {
-                logout();
-            } else {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+            try {
+                io.println("");
+                io.println("업주 메뉴");
+                io.println("1. 업소 등록");
+                boolean hasHotels = !hostService.hotelsByHost(session.getCurrentUser()).isEmpty();
+                if (hasHotels) {
+                    io.println("2. 업소 정보 수정");
+                    io.println("3. 예약자 관리");
+                    io.println("4. 로그아웃");
+                } else {
+                    io.println("2. 로그아웃");
+                }
+                String input = promptAtMainMenu(">> ");
+                if ("1".equals(input)) {
+                    registerHotelFlow();
+                } else if (hasHotels && "2".equals(input)) {
+                    editHotelFlow();
+                } else if (hasHotels && "3".equals(input)) {
+                    manageReservationsFlow();
+                } else if ((!hasHotels && "2".equals(input))
+                        || (hasHotels && "4".equals(input))) {
+                    logout();
+                } else {
+                    io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                }
+            } catch (ReturnToUserMainMenuSignal ignored) {
+                returnToUserMainMenu();
             }
         }
     }
@@ -626,7 +614,7 @@ public class AppController {
     private void registerHotelFlow() {
         String name;
         while (true) {
-            name = io.prompt("등록할 업소 이름을 입력하세요 : ");
+            name = promptInFlow("등록할 업소 이름을 입력하세요 : ");
             if (SpecValidators.isValidHotelName(name)) {
                 break;
             }
@@ -635,7 +623,7 @@ public class AppController {
 
         String postalCode;
         while (true) {
-            postalCode = io.prompt("등록할 업소의 우편번호를 입력하세요 : ");
+            postalCode = promptInFlow("등록할 업소의 우편번호를 입력하세요 : ");
             if (!SpecValidators.isValidPostalCode(postalCode)) {
                 io.println("우편번호 형식이 올바르지 않습니다.");
                 continue;
@@ -666,7 +654,7 @@ public class AppController {
 
     private int promptRoomNumberForRegistration(List<Room> existingRooms) {
         while (true) {
-            String text = io.prompt("방 번호를 입력하세요 : ");
+            String text = promptInFlow("방 번호를 입력하세요 : ");
             try {
                 int roomNumber = SpecParsers.parseRoomNumber(text, "방 번호");
                 boolean duplicate = false;
@@ -691,7 +679,7 @@ public class AppController {
 
     private int promptCapacity() {
         while (true) {
-            String text = io.prompt("인원 수를 입력하세요 : ");
+            String text = promptInFlow("인원 수를 입력하세요 : ");
             try {
                 return SpecParsers.parseCapacity(text, "인원 수");
             } catch (FatalDataException e) {
@@ -705,7 +693,7 @@ public class AppController {
     private LocalTime promptRequiredTime(String prompt) {
         while (true) {
             try {
-                return SpecParsers.parseTime(io.prompt(prompt), "시간");
+                return SpecParsers.parseTime(promptInFlow(prompt), "시간");
             } catch (FatalDataException e) {
                 io.println(isSyntaxError(e)
                         ? "시간 형식이 올바르지 않습니다."
@@ -724,7 +712,7 @@ public class AppController {
         io.println("1. 업소 이름 수정");
         io.println("2. 우편번호 수정");
         io.println("3. 방 정보 수정");
-        String input = io.prompt("수정할 항목의 번호를 선택하세요 : ");
+        String input = promptInFlow("수정할 항목의 번호를 선택하세요 : ");
         if ("1".equals(input)) {
             editHotelName(hotel);
         } else if ("2".equals(input)) {
@@ -747,7 +735,7 @@ public class AppController {
         for (int i = 0; i < hotels.size(); i++) {
             io.println((i + 1) + ". " + hotels.get(i).getName() + ", " + hotels.get(i).getPostalCode());
         }
-        Integer index = readIndex("수정할 업소 번호를 입력하세요 : ", hotels.size(), true);
+        Integer index = readIndex("수정할 업소 번호를 입력하세요 : ", hotels.size());
         if (index == null) {
             return null;
         }
@@ -756,7 +744,7 @@ public class AppController {
 
     private void editHotelName(Hotel hotel) {
         while (true) {
-            String newName = io.prompt("새로운 업소 이름을 입력하세요 : ");
+            String newName = promptInFlow("새로운 업소 이름을 입력하세요 : ");
             if (!SpecValidators.isValidHotelName(newName)) {
                 io.println("유효하지 않은 업소 이름입니다.");
                 continue;
@@ -769,7 +757,7 @@ public class AppController {
 
     private void editHotelPostalCode(Hotel hotel) {
         while (true) {
-            String newPostalCode = io.prompt("새로운 우편번호를 입력하세요 : ");
+            String newPostalCode = promptInFlow("새로운 우편번호를 입력하세요 : ");
             if (!SpecValidators.isValidPostalCode(newPostalCode)) {
                 io.println("유효하지 않은 우편번호입니다.");
                 continue;
@@ -794,7 +782,7 @@ public class AppController {
         for (int i = 0; i < rooms.size(); i++) {
             io.println((i + 1) + ". " + Formatters.ownedRoomLine(rooms.get(i)));
         }
-        Integer index = readIndex("수정할 방 번호를 입력하세요 : ", rooms.size(), true);
+        Integer index = readIndex("수정할 방 번호를 입력하세요 : ", rooms.size());
         if (index == null) {
             return;
         }
@@ -804,7 +792,7 @@ public class AppController {
         io.println("2. 인원 수");
         io.println("3. 체크인 시간");
         io.println("4. 체크아웃 시간");
-        String input = io.prompt("수정할 항목의 번호를 선택하세요 : ");
+        String input = promptInFlow("수정할 항목의 번호를 선택하세요 : ");
         try {
             if ("1".equals(input)) {
                 hostService.updateRoomNumber(room, promptSingleRoomNumber());
@@ -826,7 +814,7 @@ public class AppController {
 
     private int promptSingleRoomNumber() {
         while (true) {
-            String text = io.prompt("새 방 번호를 입력하세요 : ");
+            String text = promptInFlow("새 방 번호를 입력하세요 : ");
             try {
                 return SpecParsers.parseRoomNumber(text, "방 번호");
             } catch (FatalDataException e) {
@@ -850,7 +838,7 @@ public class AppController {
             for (int i = 0; i < reservations.size(); i++) {
                 io.println((i + 1) + ". " + Formatters.reservationMana(reservations.get(i)));
             }
-            Integer index = readIndex(">> ", reservations.size(), true);
+            Integer index = readIndex(">> ", reservations.size());
             if (index == null) {
                 hostBackToMenu();
                 return;
@@ -878,27 +866,28 @@ public class AppController {
 
     private void adminMenuLoop() {
         while (session.isLoggedIn()) {
-            io.println("");
-            io.println("관리자 메뉴");
-            io.println("1. 시간 관리");
-            io.println("2. 로그아웃");
-            String input = io.prompt(">> ");
-            if ("1".equals(input)) {
-                changeBaselineFlow();
-            } else if ("2".equals(input)) {
-                logout();
-            } else {
-                io.println("잘못된 입력입니다. 다시 입력해주세요.");
+            try {
+                io.println("");
+                io.println("관리자 메뉴");
+                io.println("1. 시간 관리");
+                io.println("2. 로그아웃");
+                String input = promptAtMainMenu(">> ");
+                if ("1".equals(input)) {
+                    changeBaselineFlow();
+                } else if ("2".equals(input)) {
+                    logout();
+                } else {
+                    io.println("잘못된 입력입니다. 다시 입력해주세요.");
+                }
+            } catch (ReturnToUserMainMenuSignal ignored) {
+                returnToUserMainMenu();
             }
         }
     }
 
     private void changeBaselineFlow() {
         while (true) {
-            String input = io.prompt("새 기준 시간 (YYYY-MM-DD HH:MM): ");
-            if (";".equals(input)) {
-                return;
-            }
+            String input = promptInFlow("새 기준 시간 (YYYY-MM-DD HH:MM): ");
             try {
                 LocalDateTime newBaseline = SpecParsers.parseFlexibleDateTime(input, "새 기준 시간");
                 if (!newBaseline.isAfter(store.baselineDateTime())) {
@@ -919,10 +908,7 @@ public class AppController {
 
     private LocalDate promptDate(String prompt) {
         while (true) {
-            String input = io.prompt(prompt);
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow(prompt);
             try {
                 return SpecParsers.parseDate(input, "날짜");
             } catch (FatalDataException e) {
@@ -935,10 +921,7 @@ public class AppController {
 
     private LocalTime promptReservationCheckInTime(Room room) {
         while (true) {
-            String input = io.prompt("체크인 시간을 입력해주세요:\n>> ");
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow("체크인 시간을 입력해주세요:\n>> ");
             try {
                 LocalTime time = SpecParsers.parseTime(input, "체크인 시간");
                 if (time.isBefore(room.getCheckInTime())) {
@@ -956,10 +939,7 @@ public class AppController {
 
     private LocalTime promptReservationCheckOutTime(Room room) {
         while (true) {
-            String input = io.prompt("체크아웃 시간을 입력해주세요:\n>> ");
-            if (";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow("체크아웃 시간을 입력해주세요:\n>> ");
             try {
                 LocalTime time = SpecParsers.parseTime(input, "체크아웃 시간");
                 if (time.isAfter(room.getCheckOutTime())) {
@@ -979,12 +959,9 @@ public class AppController {
         return exception.getMessage() != null && exception.getMessage().endsWith("문법 오류");
     }
 
-    private Integer readIndex(String prompt, int size, boolean allowBack) {
+    private Integer readIndex(String prompt, int size) {
         while (true) {
-            String input = io.prompt(prompt);
-            if (allowBack && ";".equals(input)) {
-                return null;
-            }
+            String input = promptInFlow(prompt);
             if (!input.matches("^[0-9]+$")) {
                 io.println("잘못된 입력입니다. 다시 입력해주세요.");
                 continue;
@@ -1000,11 +977,41 @@ public class AppController {
 
     private String promptYesNo(String prompt) {
         while (true) {
-            String input = io.prompt(prompt).toLowerCase();
+            String input = promptInFlow(prompt).toLowerCase();
             if ("y".equals(input) || "n".equals(input)) {
                 return input;
             }
             io.println("잘못된 입력입니다. 다시 입력해주세요.");
+        }
+    }
+
+    private String promptWithoutCommands(String prompt) {
+        return io.prompt(prompt);
+    }
+
+    private String promptAtMainMenu(String prompt) {
+        String input = promptWithoutCommands(prompt);
+        if (";;".equals(input)) {
+            throw new TerminateProgramSignal();
+        }
+        return input;
+    }
+
+    private String promptInFlow(String prompt) {
+        String input = promptAtMainMenu(prompt);
+        if (";".equals(input)) {
+            throw new ReturnToUserMainMenuSignal();
+        }
+        return input;
+    }
+
+    private void terminateProgram() {
+        io.println("프로그램을 종료 합니다.");
+    }
+
+    private void returnToUserMainMenu() {
+        if (session.isLoggedIn()) {
+            io.println(session.getCurrentUser().getRole().displayName() + " 메인 메뉴로 이동합니다.");
         }
     }
 
@@ -1019,6 +1026,18 @@ public class AppController {
     private void logout() {
         io.println("로그아웃 합니다.");
         session.logout();
+    }
+
+    private static final class TerminateProgramSignal extends RuntimeException {
+        private TerminateProgramSignal() {
+            super(null, null, false, false);
+        }
+    }
+
+    private static final class ReturnToUserMainMenuSignal extends RuntimeException {
+        private ReturnToUserMainMenuSignal() {
+            super(null, null, false, false);
+        }
     }
 
     private static final class StayInput {
