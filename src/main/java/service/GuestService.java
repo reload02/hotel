@@ -326,8 +326,12 @@ public class GuestService {
     }
 
     public boolean shouldRestoreCancelPending(Reservation reservation, LocalDateTime now) {
+        LocalDateTime restoreDeadline = reservation.getCheckInDateTime().minusHours(24);
+        LocalDateTime cancelRequestedAt = reservation.getCancelRequestDateTime();
         return reservation.getStatus() == ReservationStatus.CANCEL_PENDING
-                && !now.isBefore(reservation.getCheckInDateTime().minusHours(24));
+                && cancelRequestedAt != null
+                && cancelRequestedAt.isBefore(restoreDeadline)
+                && !now.isBefore(restoreDeadline);
     }
 
     public LocalDate baselineDate() {
